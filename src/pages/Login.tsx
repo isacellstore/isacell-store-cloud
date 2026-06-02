@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { Smartphone, Youtube, Mail, Phone, Loader2 } from 'lucide-react';
 
@@ -8,6 +9,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const login = useAuthStore(s => s.login);
+  const navigate = useNavigate();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -18,6 +20,9 @@ export default function Login() {
     
     if (!result.success) {
       setError(result.error || 'Error de autenticacion');
+    } else {
+      // Redirigir al Dashboard cuando el login es exitoso
+      navigate('/');
     }
     
     setIsLoading(false);
