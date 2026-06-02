@@ -18,7 +18,7 @@ interface AuthState {
   isAdmin: () => boolean;
 }
 
-export const useAuthStore = create<<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
   company: null,
   companyId: null,
