@@ -18,7 +18,7 @@ interface AuthState {
   isAdmin: () => boolean;
 }
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<<AuthState>((set, get) => ({
   user: null,
   company: null,
   companyId: null,
@@ -36,7 +36,16 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       if (data.user) {
         const companyId = data.user.user_metadata?.company_id;
         
-        const { data: userData } = await supabase.from('users').select('*').eq('auth_id', data.user.id).single();
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_id', data.user.id)
+          .maybeSingle();
+
+        if (userError) {
+          console.error('Error fetching user:', userError);
+          return { success: false, error: 'Error al obtener datos del usuario' };
+        }
 
         if (userData) {
           const permissions = (userData.permissions as ModulePermissions) || getDefaultPermissions(userData.role as string);
@@ -49,18 +58,26 @@ export const useAuthStore = create<AuthState>((set, get) => ({
           });
 
           if (companyId || userData.company_id) {
-            const { data: companyData } = await supabase
+            const { data: companyData, error: companyError } = await supabase
               .from('companies')
               .select('*')
               .eq('id', (companyId || userData.company_id) as string)
-              .single();
-            if (companyData) set({ company: companyData as unknown as Company });
+              .maybeSingle();
+            
+            if (companyError) {
+              console.error('Error fetching company:', companyError);
+            } else if (companyData) {
+              set({ company: companyData as unknown as Company });
+            }
           }
+        } else {
+          return { success: false, error: 'Usuario no encontrado en la base de datos' };
         }
         return { success: true };
       }
       return { success: false, error: 'Usuario no encontrado' };
     } catch (err: any) {
+      console.error('Login error:', err);
       return { success: false, error: err.message || 'Error de login' };
     }
   },
@@ -77,8 +94,15 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const companyId = session.user.user_metadata?.company_id;
-        const { data: userData } = await supabase.from('users').select('*').eq('auth_id', session.user.id).single();
-        if (userData) {
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('auth_id', session.user.id)
+          .maybeSingle();
+        
+        if (userError) {
+          console.error('Session check - user error:', userError);
+        } else if (userData) {
           const permissions = (userData.permissions as ModulePermissions) || getDefaultPermissions(userData.role as string);
           set({ 
             user: userData as unknown as User,
@@ -87,12 +111,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             isAuthenticated: true,
           });
           if (companyId || userData.company_id) {
-            const { data: companyData } = await supabase.from('companies').select('*').eq('id', (companyId || userData.company_id) as string).single();
-            if (companyData) set({ company: companyData as unknown as Company });
+            const { data: companyData, error: companyError } = await supabase
+              .from('companies')
+              .select('*')
+              .eq('id', (companyId || userData.company_id) as string)
+              .maybeSingle();
+            
+            if (companyError) {
+              console.error('Session check - company error:', companyError);
+            } else if (companyData) {
+              set({ company: companyData as unknown as Company });
+            }
           }
         }
       }
-    } catch (e) { console.error('Session check error:', e); }
+    } catch (e) { 
+      console.error('Session check error:', e); 
+    }
     finally { set({ isLoading: false }); }
   },
 
