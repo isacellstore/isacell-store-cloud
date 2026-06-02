@@ -37,19 +37,71 @@ export default function Settings() {
   };
 
   const handleAddUser = async () => {
-    if (!userForm.name || !userForm.username || !userForm.password) { showAlert('Nombre, usuario y contraseña requeridos', 'error'); return; }
+    if (!userForm.name || !userForm.username || !userForm.password) { 
+        showAlert('Nombre, usuario y contraseña requeridos', 'error'); 
+        return; 
+    }
+    
+    if (userForm.password.length < 6) {
+        showAlert('La contraseña debe tener al menos 6 caracteres', 'error');
+        return;
+    }
+    
     const email = `${userForm.username}@isacell.store`;
-    const { data: authData, error: authError } = await supabase.auth.signUp({ email, password: userForm.password, options: { data: { company_id: company?.id } } });
-    if (authError || !authData.user) { showAlert('Error creando usuario: ' + (authError?.message || ''), 'error'); return; }
-    const { error: userError } = await supabase.from('users').insert({
-      auth_id: authData.user.id, company_id: company?.id, name: userForm.name, username: userForm.username,
-      email, role: userForm.role, permissions: userForm.permissions as any, is_active: true,
-    });
-    if (userError) { showAlert('Error: ' + userError.message, 'error'); return; }
-    showAlert('Usuario creado', 'success');
-    setShowUserForm(false);
-    setUserForm({ name: '', username: '', password: '', role: 'ventas', permissions: { pos: true, inventory: true, purchases: false, workshop: false, accounts: false, suppliers: false, cash: false, reports: false, settings: false } });
-  };
+    
+    try {
+        // Obtener token de sesión actual
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+            showAlert('Sesión expirada. Por favor inicia sesión de nuevo.', 'error');
+            return;
+        }
+        
+        // Llamar a la Edge Function
+        const response = await fetch('https://tbhhxbaomqhbapgobnxw.supabase.co/functions/v1/create-user', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+                email,
+                password: userForm.password,
+                username: userForm.username,
+                name: userForm.name,
+                role: userForm.role,
+                company_id: company?.id,
+                permissions: userForm.permissions,
+                user_metadata: {
+                    company_id: company?.id,
+                    name: userForm.name,
+                    role: userForm.role
+                }
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (!response.ok) {
+            showAlert('Error creando usuario: ' + (result.error || 'Error desconocido'), 'error');
+            return;
+        }
+        
+        showAlert('Usuario creado exitosamente', 'success');
+        setShowUserForm(false);
+        setUserForm({ 
+            name: '', 
+            username: '', 
+            password: '', 
+            role: 'ventas', 
+            permissions: { pos: true, inventory: true, purchases: false, workshop: false, accounts: false, suppliers: false, cash: false, reports: false, settings: false } 
+        });
+        
+    } catch (error: any) {
+        showAlert('Error: ' + error.message, 'error');
+    }
+};
 
   if (user?.role !== 'admin') {
     return (
